@@ -1,0 +1,57 @@
+[
+  {
+    "id": "prod-1",
+    "name": "iPhone 15 Pro Max",
+    "sku": "APL-IP15PM-256",
+    "category": "هواتف ذكية",
+    "quantity": 15,
+    "minThreshold": 5,
+    "costPrice": 920,
+    "sellingPrice": 1199,
+    "supplierName": "شركة آبل للتوزيع المحدودة"
+  },
+  {
+    "id": "prod-2",
+    "name": "Samsung Galaxy S24 Ultra",
+    "sku": "SAM-S24U-512",
+    "category": "هواتف ذكية",
+    "quantity": 3,
+    "minThreshold": 5,
+    "costPrice": 950,
+    "sellingPrice": 1299,
+    "supplierName": "وكالة سامسونج الشرق الأوسط"
+  },
+  {
+    "id": "prod-3",
+    "name": "MacBook Pro M3 Max 16\"",
+    "sku": "APL-MBP3M-1TB",
+    "category": "إلكترونيات",
+    "quantity": 8,
+    "minThreshold": 2,
+    "costPrice": 2800,
+    "sellingPrice": 3499,
+    "supplierName": "شركة آبل للتوزيع المحدودة"
+  },
+  {
+    "id": "prod-4",
+    "name": "iPad Pro 11-inch M4",
+    "sku": "APL-IPP4-256",
+    "category": "أجهزة لوحية",
+    "quantity": 0,
+    "minThreshold": 4,
+    "costPrice": 750,
+    "sellingPrice": 999,
+    "supplierName": "موزعي آبل المعتمدين"
+  },
+  {
+    "id": "prod-5",
+    "name": "Sony WH-1000XM5",
+    "sku": "SNY-XM5-WHT",
+    "category": "إكسسوارات",
+    "quantity": 22,
+    "minThreshold": 8,
+    "costPrice": 240,
+    "sellingPrice": 349,
+    "supplierName": "سوني للإلكترونيات مصر"
+  }
+]

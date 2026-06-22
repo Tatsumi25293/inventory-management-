@@ -1,0 +1,18 @@
+[
+  {
+    "id": "log-1",
+    "productName": "iPhone 15 Pro Max",
+    "sku": "APL-IP15PM-256",
+    "change": 5,
+    "reason": "توريد شحنة جديدة",
+    "timestamp": "2026-06-21 10:15"
+  },
+  {
+    "id": "log-2",
+    "productName": "Samsung Galaxy S24 Ultra",
+    "sku": "SAM-S24U-512",
+    "change": -2,
+    "reason": "بيع منتج",
+    "timestamp": "2026-06-21 11:42"
+  }
+]

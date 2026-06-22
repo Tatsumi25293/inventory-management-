@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  Package, Search, Plus, Trash2, Edit2, ChevronDown, 
-  TrendingUp, AlertTriangle, Layers, DollarSign, LogOut, 
-  History, CornerDownLeft, ShieldAlert, ArrowUpDown, RefreshCcw
+  Package, Search, Plus, Trash2, Edit2, 
+  TrendingUp, AlertTriangle, Layers, LogOut, 
+  History, CornerDownLeft, ShieldAlert, ArrowUpDown
 } from 'lucide-react';
 import ProductModal from '@/components/ProductModal';
 import QuantityModal from '@/components/QuantityModal';
@@ -31,88 +31,16 @@ interface LogEntry {
   timestamp: string;
 }
 
-// Initial Mock Data
-const INITIAL_PRODUCTS: Product[] = [
-  {
-    id: 'prod-1',
-    name: 'iPhone 15 Pro Max',
-    sku: 'APL-IP15PM-256',
-    category: 'هواتف ذكية',
-    quantity: 15,
-    minThreshold: 5,
-    costPrice: 920,
-    sellingPrice: 1199,
-    supplierName: 'شركة آبل للتوزيع المحدودة',
-  },
-  {
-    id: 'prod-2',
-    name: 'Samsung Galaxy S24 Ultra',
-    sku: 'SAM-S24U-512',
-    category: 'هواتف ذكية',
-    quantity: 3, // Low stock since threshold is 5
-    minThreshold: 5,
-    costPrice: 950,
-    sellingPrice: 1299,
-    supplierName: 'وكالة سامسونج الشرق الأوسط',
-  },
-  {
-    id: 'prod-3',
-    name: 'MacBook Pro M3 Max 16"',
-    sku: 'APL-MBP3M-1TB',
-    category: 'إلكترونيات',
-    quantity: 8,
-    minThreshold: 2,
-    costPrice: 2800,
-    sellingPrice: 3499,
-    supplierName: 'شركة آبل للتوزيع المحدودة',
-  },
-  {
-    id: 'prod-4',
-    name: 'iPad Pro 11-inch M4',
-    sku: 'APL-IPP4-256',
-    category: 'أجهزة لوحية',
-    quantity: 0, // Out of stock
-    minThreshold: 4,
-    costPrice: 750,
-    sellingPrice: 999,
-    supplierName: 'موزعي آبل المعتمدين',
-  },
-  {
-    id: 'prod-5',
-    name: 'Sony WH-1000XM5',
-    sku: 'SNY-XM5-WHT',
-    category: 'إكسسوارات',
-    quantity: 22,
-    minThreshold: 8,
-    costPrice: 240,
-    sellingPrice: 349,
-    supplierName: 'سوني للإلكترونيات مصر',
-  }
-];
+const BACKEND_URL = 'http://localhost:5000/api';
 
 export default function DashboardPage() {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('الكل');
   const [selectedStatus, setSelectedStatus] = useState('الكل');
-  const [logs, setLogs] = useState<LogEntry[]>([
-    {
-      id: 'log-1',
-      productName: 'iPhone 15 Pro Max',
-      sku: 'APL-IP15PM-256',
-      change: 5,
-      reason: 'توريد شحنة جديدة',
-      timestamp: '2026-06-14 10:15'
-    },
-    {
-      id: 'log-2',
-      productName: 'Samsung Galaxy S24 Ultra',
-      sku: 'SAM-S24U-512',
-      change: -2,
-      reason: 'بيع منتج',
-      timestamp: '2026-06-14 11:42'
-    }
-  ]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
 
   // Modal States
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -122,6 +50,60 @@ export default function DashboardPage() {
   
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
+
+  // Helper fetch function to communicate with Express backend with credentials
+  const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+        ...options,
+        credentials: 'include', // Send HTTP-only session cookies
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        // Session expired or invalid, redirect to login
+        router.push('/login');
+        router.refresh();
+        return null;
+      }
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'حدث خطأ في طلب الباكند');
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      console.error(`API Fetch Error [${endpoint}]:`, error);
+      setErrorMsg(error.message || 'فشل الاتصال بخادم الباكند');
+      return null;
+    }
+  };
+
+  // Fetch initial data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      setErrorMsg('');
+      
+      const productsData = await apiFetch('/products');
+      if (productsData && productsData.success) {
+        setProducts(productsData.products);
+      }
+      
+      const logsData = await apiFetch('/products/logs');
+      if (logsData && logsData.success) {
+        setLogs(logsData.logs);
+      }
+      
+      setIsLoading(false);
+    };
+
+    loadData();
+  }, []);
 
   // Statistics calculation
   const totalProducts = products.length;
@@ -188,86 +170,74 @@ export default function DashboardPage() {
   };
 
   // Add / Edit Product Save
-  const handleSaveProduct = (product: Product) => {
+  const handleSaveProduct = async (product: Product) => {
+    setErrorMsg('');
     if (editingProduct) {
       // Edit mode
-      setProducts((prev) => 
-        prev.map((p) => (p.id === product.id ? product : p))
-      );
-      
-      // Add log
-      const newLog: LogEntry = {
-        id: Math.random().toString(36).substring(2, 9),
-        productName: product.name,
-        sku: product.sku,
-        change: 0,
-        reason: 'تعديل تفاصيل المنتج والأسعار',
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
-      };
-      setLogs((prev) => [newLog, ...prev]);
+      const result = await apiFetch(`/products/${product.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(product),
+      });
+
+      if (result && result.success) {
+        setProducts((prev) => 
+          prev.map((p) => (p.id === product.id ? result.product : p))
+        );
+        // Refresh logs
+        const logsData = await apiFetch('/products/logs');
+        if (logsData && logsData.success) setLogs(logsData.logs);
+      }
     } else {
       // Add mode
-      setProducts((prev) => [...prev, product]);
-      
-      // Add log
-      const newLog: LogEntry = {
-        id: Math.random().toString(36).substring(2, 9),
-        productName: product.name,
-        sku: product.sku,
-        change: product.quantity,
-        reason: 'إضافة منتج جديد للمخازن',
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
-      };
-      setLogs((prev) => [newLog, ...prev]);
+      const result = await apiFetch('/products', {
+        method: 'POST',
+        body: JSON.stringify(product),
+      });
+
+      if (result && result.success) {
+        setProducts((prev) => [...prev, result.product]);
+        // Refresh logs
+        const logsData = await apiFetch('/products/logs');
+        if (logsData && logsData.success) setLogs(logsData.logs);
+      }
     }
   };
 
   // Adjust Product Quantity
-  const handleSaveQuantity = (productId: string, quantityChange: number, reason: string) => {
-    let affectedProduct: Product | undefined;
-    
-    setProducts((prev) => 
-      prev.map((p) => {
-        if (p.id === productId) {
-          const updatedQty = Math.max(0, p.quantity + quantityChange);
-          affectedProduct = { ...p, quantity: updatedQty };
-          return affectedProduct;
-        }
-        return p;
-      })
-    );
+  const handleSaveQuantity = async (productId: string, quantityChange: number, reason: string) => {
+    setErrorMsg('');
+    const result = await apiFetch(`/products/${productId}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify({ quantityChange, reason }),
+    });
 
-    if (affectedProduct) {
-      const newLog: LogEntry = {
-        id: Math.random().toString(36).substring(2, 9),
-        productName: affectedProduct.name,
-        sku: affectedProduct.sku,
-        change: quantityChange,
-        reason,
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
-      };
-      setLogs((prev) => [newLog, ...prev]);
+    if (result && result.success) {
+      setProducts((prev) => 
+        prev.map((p) => (p.id === productId ? result.product : p))
+      );
+      // Refresh logs
+      const logsData = await apiFetch('/products/logs');
+      if (logsData && logsData.success) setLogs(logsData.logs);
     }
   };
 
   // Delete Product
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
     const productToDelete = products.find((p) => p.id === productId);
     if (!productToDelete) return;
 
     if (confirm(`هل أنت متأكد من حذف المنتج "${productToDelete.name}" نهائياً من النظام؟`)) {
-      setProducts((prev) => prev.filter((p) => p.id !== productId));
-      
-      // Add log
-      const newLog: LogEntry = {
-        id: Math.random().toString(36).substring(2, 9),
-        productName: productToDelete.name,
-        sku: productToDelete.sku,
-        change: -productToDelete.quantity,
-        reason: 'شطب وحذف المنتج من المخازن',
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
-      };
-      setLogs((prev) => [newLog, ...prev]);
+      setErrorMsg('');
+      const result = await apiFetch(`/products/${productId}`, {
+        method: 'DELETE',
+      });
+
+      if (result && result.success) {
+        setProducts((prev) => prev.filter((p) => p.id !== productId));
+        // Refresh logs
+        const logsData = await apiFetch('/products/logs');
+        if (logsData && logsData.success) setLogs(logsData.logs);
+      }
     }
   };
 
@@ -290,14 +260,14 @@ export default function DashboardPage() {
           </div>
           <div>
             <h1 className="text-md font-bold tracking-tight text-white/95">لوحة تحكم المخزون</h1>
-            <p className="text-[10px] text-gray-400">إصدار التعديل المحلي - آمن بالكامل</p>
+            <p className="text-[10px] text-gray-400">نظام Express.js متكامل ومستمر</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/[0.05] text-xs text-gray-400 select-none">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>المستخدم: المسؤول</span>
+            <span>الباكند: متصل بالخادم</span>
           </div>
 
           <button
@@ -314,6 +284,13 @@ export default function DashboardPage() {
       {/* Dashboard Content Container */}
       <main className="relative z-10 max-w-7xl w-full mx-auto px-6 md:px-12 mt-8 flex-1 space-y-8">
         
+        {errorMsg && (
+          <div className="p-4 rounded-2xl bg-red-950/40 border border-red-500/30 text-red-300 text-xs text-center backdrop-blur-md flex items-center justify-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
         {/* STATS PANELS CARDS */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           
@@ -321,7 +298,9 @@ export default function DashboardPage() {
           <div className="glass-panel p-6 rounded-2xl flex items-center justify-between shadow-lg">
             <div className="space-y-1">
               <span className="text-xs text-gray-400 block font-medium">إجمالي المنتجات</span>
-              <span className="text-3xl font-extrabold text-white block">{totalProducts}</span>
+              <span className="text-3xl font-extrabold text-white block">
+                {isLoading ? '...' : totalProducts}
+              </span>
               <span className="text-[10px] text-gray-500 block">من أصناف مختلفة</span>
             </div>
             <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
@@ -334,10 +313,10 @@ export default function DashboardPage() {
             <div className="space-y-1">
               <span className="text-xs text-gray-400 block font-medium">قيمة مخزون البيع</span>
               <span className="text-3xl font-extrabold text-emerald-400 block">
-                ${totalStockValue.toLocaleString()}
+                {isLoading ? '...' : `$${totalStockValue.toLocaleString()}`}
               </span>
               <span className="text-[10px] text-gray-500 block">
-                قيمة التكلفة: ${totalCostValue.toLocaleString()} ({profitMargin.toFixed(0)}% ربح)
+                {isLoading ? '...' : `قيمة التكلفة: $${totalCostValue.toLocaleString()} (${profitMargin.toFixed(0)}% ربح)`}
               </span>
             </div>
             <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
@@ -347,17 +326,17 @@ export default function DashboardPage() {
 
           {/* Card 3: Low Stock Alerts */}
           <div className={`glass-panel p-6 rounded-2xl flex items-center justify-between shadow-lg transition-all duration-300 ${
-            lowStockCount > 0 ? 'border-amber-500/20 bg-amber-500/[0.02] glow-amber' : ''
+            !isLoading && lowStockCount > 0 ? 'border-amber-500/20 bg-amber-500/[0.02] glow-amber' : ''
           }`}>
             <div className="space-y-1">
               <span className="text-xs text-gray-400 block font-medium">منتجات منخفضة المخزون</span>
-              <span className={`text-3xl font-extrabold block ${lowStockCount > 0 ? 'text-amber-400' : 'text-white'}`}>
-                {lowStockCount}
+              <span className={`text-3xl font-extrabold block ${!isLoading && lowStockCount > 0 ? 'text-amber-400' : 'text-white'}`}>
+                {isLoading ? '...' : lowStockCount}
               </span>
               <span className="text-[10px] text-gray-500 block">تحت حد التنبيه الآمن</span>
             </div>
             <div className={`p-3.5 rounded-xl ${
-              lowStockCount > 0 
+              !isLoading && lowStockCount > 0 
                 ? 'bg-amber-500/20 border border-amber-500/30 text-amber-400' 
                 : 'bg-white/5 border border-white/10 text-gray-400'
             }`}>
@@ -367,17 +346,17 @@ export default function DashboardPage() {
 
           {/* Card 4: Out Of Stock */}
           <div className={`glass-panel p-6 rounded-2xl flex items-center justify-between shadow-lg transition-all duration-300 ${
-            outOfStockCount > 0 ? 'border-red-500/20 bg-red-500/[0.02] glow-red animate-pulse' : ''
+            !isLoading && outOfStockCount > 0 ? 'border-red-500/20 bg-red-500/[0.02] glow-red' : ''
           }`}>
             <div className="space-y-1">
               <span className="text-xs text-gray-400 block font-medium">المنتجات النفذة</span>
-              <span className={`text-3xl font-extrabold block ${outOfStockCount > 0 ? 'text-red-400 font-black' : 'text-white'}`}>
-                {outOfStockCount}
+              <span className={`text-3xl font-extrabold block ${!isLoading && outOfStockCount > 0 ? 'text-red-400 font-black' : 'text-white'}`}>
+                {isLoading ? '...' : outOfStockCount}
               </span>
               <span className="text-[10px] text-gray-500 block">بحاجة لإعادة شراء فورية</span>
             </div>
             <div className={`p-3.5 rounded-xl ${
-              outOfStockCount > 0 
+              !isLoading && outOfStockCount > 0 
                 ? 'bg-red-500/20 border border-red-500/30 text-red-400' 
                 : 'bg-white/5 border border-white/10 text-gray-400'
             }`}>
@@ -467,7 +446,16 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
-                {filteredProducts.length > 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={10} className="px-5 py-16 text-center">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                        <span className="text-xs text-gray-400">جاري تحميل بيانات المخزن من الخادم...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredProducts.length > 0 ? (
                   filteredProducts.map((p) => {
                     const isOutOfStock = p.quantity === 0;
                     const isLowStock = p.quantity <= p.minThreshold && p.quantity > 0;
@@ -609,12 +597,12 @@ export default function DashboardPage() {
                 <h3 className="text-sm font-bold text-white">سجل حركات تعديل المخزون</h3>
               </div>
               <span className="text-[10px] text-gray-500 bg-white/[0.02] border border-white/[0.05] rounded-full px-3 py-1">
-                تحديث تلقائي (الجلسة الحالية)
+                البيانات محفوظة بالباكند
               </span>
             </div>
             
             <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
-              {logs.length > 0 ? (
+              {!isLoading && logs.length > 0 ? (
                 logs.map((log) => {
                   const isPositive = log.change > 0;
                   const isChangeZero = log.change === 0;
@@ -652,6 +640,10 @@ export default function DashboardPage() {
                     </div>
                   );
                 })
+              ) : isLoading ? (
+                <div className="text-center py-6 text-xs text-gray-500">
+                  جاري تحميل السجل...
+                </div>
               ) : (
                 <div className="text-center py-6 text-xs text-gray-500">
                   لا توجد حركات مخزنية مسجلة حالياً.

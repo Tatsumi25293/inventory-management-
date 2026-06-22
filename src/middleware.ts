@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifySession } from './lib/auth';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-that-is-at-least-32-characters-long';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -18,8 +15,32 @@ export async function middleware(request: NextRequest) {
 
   // 2. Retrieve session token from cookies
   const sessionToken = request.cookies.get('session_token')?.value;
-  const username = await verifySession(sessionToken, JWT_SECRET);
-  const isAuthenticated = !!username;
+  
+  let isAuthenticated = false;
+  
+  if (sessionToken) {
+    try {
+      // Query the Express.js backend to verify the token
+      const verifyRes = await fetch('http://localhost:5000/api/auth/verify', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+          'Cookie': `session_token=${sessionToken}`
+        },
+        // Set a short cache-control to prevent Next.js from caching verification status
+        cache: 'no-store'
+      });
+      
+      if (verifyRes.ok) {
+        const authData = await verifyRes.json();
+        isAuthenticated = !!authData.authenticated;
+      }
+    } catch (error) {
+      console.error('Middleware verification connection failed:', error);
+      // Fail closed (unauthorized) if the backend cannot be reached
+      isAuthenticated = false;
+    }
+  }
 
   // 3. If authenticated and accessing login, redirect to dashboard (/)
   if (pathname === '/login' && isAuthenticated) {
@@ -29,7 +50,6 @@ export async function middleware(request: NextRequest) {
   // 4. If NOT authenticated and accessing protected routes, redirect to login (/login)
   if (pathname !== '/login' && !isAuthenticated) {
     const loginUrl = new URL('/login', request.url);
-    // Preserve the original path for redirection after successful login
     if (pathname !== '/') {
       loginUrl.searchParams.set('from', pathname);
     }
